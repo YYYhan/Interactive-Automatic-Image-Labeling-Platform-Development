@@ -1,4 +1,8 @@
-numpy
-torch
+torch>=1.7
+torchvision>=0.8
+kornia>=0.7.0
 opencv-python
-pathlib
+voxynth @ git+https://github.com/dalcalab/voxynth.git
+numpy
+matplotlib
+neurite
