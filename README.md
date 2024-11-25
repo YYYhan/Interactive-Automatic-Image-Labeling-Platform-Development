@@ -40,7 +40,7 @@ pip install -r requirements.txt
 ```
 
 #### **4. Download Pretrained Models**
-- Download pretrained models from the [Releases section](https://github.com/YYYhan/Interactive-Automatic-Image-Labeling-Platform-Development/releases).
+- Download pretrained models from the [Releases section](https://github.com/halleewong/ScribblePrompt/releases).
 - Place them in the `checkpoints/` directory:
   ```plaintext
   checkpoints/
