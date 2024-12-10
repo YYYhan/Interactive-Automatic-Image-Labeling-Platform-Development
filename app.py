@@ -621,5 +621,5 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
 
 
 if __name__ == "__main__":
-
-    demo.queue(api_open=False).launch(show_api=False)
+    
+    demo.queue(concurrency_count=10, max_size=100).launch(server_name="0.0.0.0", server_port=7860, show_api=False)
