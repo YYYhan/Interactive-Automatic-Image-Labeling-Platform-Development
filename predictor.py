@@ -49,41 +49,59 @@ class Predictor:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model = self.model.to(self.device)
 
-    def predict(self, prompts: Dict[str,any], img_features: Optional[torch.Tensor] = None, multimask_mode: bool = False):
+    def predict(self, prompts: Dict[str, any], img_features: Optional[torch.Tensor] = None, multimask_mode: bool = False):
         """
-        Make predictions!
+        Make predictions for a specific slice or frame.
+
+        Args:
+            prompts (Dict[str, any]): Dictionary containing model input data.
+            img_features (Optional[torch.Tensor]): Precomputed image features (for SAM models).
+            multimask_mode (bool): Enable multi-mask output (if supported by the model).
 
         Returns:
-            mask (torch.Tensor): H x W
-            img_features (torch.Tensor): B x 1 x H x W (for SAM models)
-            low_res_mask (torch.Tensor): B x 1 x H x W logits
+            Tuple[torch.Tensor, Optional[torch.Tensor], torch.Tensor]:
+                - mask (torch.Tensor): H x W prediction mask.
+                - img_features (Optional[torch.Tensor]): Image features (if applicable).
+                - low_res_mask (torch.Tensor): Low-resolution logits.
         """
         if self.verbose:
             print("point_coords", prompts.get("point_coords", None))
             print("point_labels", prompts.get("point_labels", None))
             print("box", prompts.get("box", None))
-            print("img", prompts.get("img").shape, prompts.get("img").min(), prompts.get("img").max())
+            print("img shape", prompts.get("img").shape)
             if prompts.get("scribble") is not None:
-                print("scribble", prompts.get("scribble", None).shape, prompts.get("scribble").min(), prompts.get("scribble").max())
+                print("scribble", prompts.get("scribble").shape)
 
-        original_shape = prompts.get('img').shape[-2:]
+        # Extract selected slice/frame if 3D input
+        img = prompts.get("img")
+        if img.ndim == 3:  # 3D single-channel input (e.g., CT/MRI)
+            slice_idx = prompts.get("slice_idx", 0)
+            img = img[..., slice_idx]
+        elif img.ndim == 4:  # 3D multi-channel input (e.g., RGB video)
+            frame_idx = prompts.get("frame_idx", 0)
+            img = img[..., frame_idx, :]
+        prompts["img"] = img
 
-        # Rescale to 128 x 128
+        # Store original image shape
+        original_shape = img.shape[-2:]
+
+        # Rescale inputs to match model input size (e.g., 128x128)
         prompts = rescale_inputs(prompts)
 
-        # Prepare inputs for ScribblePrompt unet (1 x 5 x 128 x 128)
+        # Prepare model inputs (e.g., concatenate channels for scribbles, bounding boxes, etc.)
         x = prepare_inputs(prompts).float()
 
+        # Run the model
         with torch.no_grad():
             yhat = self.model(x.to(self.device)).cpu()
 
+        # Apply sigmoid activation to obtain binary mask probabilities
         mask = torch.sigmoid(yhat)
 
-        # Resize for app resolution
-        mask = F.interpolate(mask, size=original_shape, mode='bilinear').squeeze()
-
-        # mask: H x W, yhat: 1 x 1 x H x W
+        # Resize mask back to original resolution
+        mask = F.interpolate(mask, size=original_shape, mode="bilinear").squeeze()
         return mask, None, yhat
+
         
 
 # -----------------------------------------------------------------------------
