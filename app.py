@@ -8,7 +8,7 @@ import os
 import cv2
 import pathlib
 import math
-import nibabel as nib  # 用于读取 NIfTI 格式的3D图像
+import nibabel as nib 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -33,7 +33,7 @@ model_dict = {
 }
 
 # =============================================================================
-# 模型初始化函数
+# Model initialization functions
 # =============================================================================
 def load_model(exp_key: str = default_model):
     fpath = exp_dir / model_dict.get(exp_key)
@@ -41,7 +41,7 @@ def load_model(exp_key: str = default_model):
     return exp, None
 
 # =============================================================================
-# 可视化相关函数
+# Vizualization functions
 # =============================================================================
 def _get_overlay(img, lay, const_color="l_blue"):
     """
@@ -110,6 +110,7 @@ def viz_pred_mask(img,
     out = image_overlay(img, mask=mask, scribbles=seperate_scribble_masks)
     H, W = img.shape[:2]
     marker_size = min(H, W) // 100
+
     if point_coords is not None:
         for i, (col, row) in enumerate(point_coords):
             if point_labels[i] == 1:
@@ -124,7 +125,7 @@ def viz_pred_mask(img,
     return out.astype(np.uint8)
 
 # =============================================================================
-# 记录 scribbles 的函数
+# Collect scribbles
 # =============================================================================
 def get_scribbles(seperate_scribble_masks, last_scribble_mask, scribble_img):
     """
@@ -133,16 +134,16 @@ def get_scribbles(seperate_scribble_masks, last_scribble_mask, scribble_img):
     assert isinstance(seperate_scribble_masks, np.ndarray), "seperate_scribble_masks must be numpy array, got type: " + str(type(seperate_scribble_masks))
     if scribble_img is not None:
        
-        color_mask = scribble_img.get('layers')[0] if isinstance(scribble_img, dict) and 'layers' in scribble_img else scribble_img
-        positive_scribbles = 1.0 * (color_mask[..., 1] > 128)
-        negative_scribbles = 1.0 * (color_mask[..., 0] > 128)
+        # Only use first layer
+        color_mask = scribble_img.get('layers')[0]
+        
+        positive_scribbles = 1.0*(color_mask[...,1] > 128)
+        negative_scribbles = 1.0*(color_mask[...,0] > 128)
+        
         seperate_scribble_masks = np.stack([positive_scribbles, negative_scribbles], axis=0)
         last_scribble_mask = None
-    return seperate_scribble_masks, last_scribble_mask
+        return seperate_scribble_masks, last_scribble_mask
 
-# =============================================================================
-# 原预测函数（保持不变）
-# =============================================================================
 def get_predictions(predictor, input_img, click_coords, click_labels, bbox_coords, seperate_scribble_masks, 
                     low_res_mask, img_features, multimask_mode):
     box = None
@@ -166,56 +167,48 @@ def get_predictions(predictor, input_img, click_coords, click_labels, bbox_coord
     mask, img_features, low_res_mask = predictor.predict(prompts, img_features, multimask_mode=multimask_mode)
     return mask, img_features, low_res_mask
 
-# =============================================================================
-# 修改后的刷新预测函数，增加了 volume_file 与 current_slice 参数
-# =============================================================================
 def refresh_predictions(predictor, input_img, output_img, click_coords, click_labels, bbox_coords, brush_label,
                         scribble_img, seperate_scribble_masks, last_scribble_mask, 
                         best_mask, low_res_mask, img_features, binary_checkbox, multimask_mode,
                         volume_file, current_slice):
-    """
-    如果上传了 3D/视频文件且 current_slice 不为空，则使用 current_slice 作为输入图像。
-    其余部分与原逻辑保持一致。
-    """
+    
     # 如果用户上传了 volume（3D/视频）且 current_slice 有值，则将其作为预测输入图像
     if volume_file is not None and current_slice is not None:
         input_img = current_slice
 
-    # 记录新的 scribbles
+    # Record any new scribbles
     seperate_scribble_masks, last_scribble_mask = get_scribbles(
         seperate_scribble_masks, last_scribble_mask, scribble_img
     )
-    # 进行预测
+    # Make prediction
     best_mask, img_features, low_res_mask = get_predictions(
         predictor, input_img, click_coords, click_labels, bbox_coords, seperate_scribble_masks, low_res_mask, img_features, multimask_mode
     )
-    mask_to_viz = best_mask.numpy() if best_mask is not None else None
+    # Update input visualizations
+    mask_to_viz = best_mask.numpy()
     click_input_viz = viz_pred_mask(input_img, mask_to_viz, click_coords, click_labels, bbox_coords, seperate_scribble_masks, binary_checkbox)
     
     empty_channel = np.zeros(input_img.shape[:2]).astype(np.uint8)
     full_channel = 255 * np.ones(input_img.shape[:2]).astype(np.uint8)
-    gray_mask = (255 * mask_to_viz).astype(np.uint8) if mask_to_viz is not None else None
+    gray_mask = (255 * mask_to_viz).astype(np.uint8) 
 
     bg = viz_pred_mask(input_img, mask_to_viz, click_coords, click_labels, bbox_coords, None, binary_checkbox)
-    # 假设 scribble_img 为 dict 格式并含有 'layers'
-    old_scribbles = scribble_img.get('layers')[0] if isinstance(scribble_img, dict) and 'layers' in scribble_img else scribble_img
-    scribble_mask = 255 * (old_scribbles > 0).any(-1) if old_scribbles is not None else empty_channel
-
+    
+    old_scribbles = scribble_img.get('layers')[0] 
+    scribble_mask = 255*(old_scribbles > 0).any(-1)
     scribble_input_viz = {
-        "background": np.stack([bg[..., i] for i in range(3)] + [full_channel], axis=-1),
-        "layers": {
-            0: [np.stack([
-                (255 * seperate_scribble_masks[1]).astype(np.uint8),
-                (255 * seperate_scribble_masks[0]).astype(np.uint8),
-                empty_channel,
-                scribble_mask
-            ], axis=-1)]
-        },
-        "composite": np.stack([click_input_viz[..., i] for i in range(3)] + [empty_channel], axis=-1),
+        "background": np.stack([bg[...,i] for i in range(3)]+[full_channel], axis=-1),
+        ["layers"][0]: [np.stack([
+            (255*seperate_scribble_masks[1]).astype(np.uint8), 
+            (255*seperate_scribble_masks[0]).astype(np.uint8), 
+            empty_channel, 
+            scribble_mask
+        ], axis=-1)],
+        "composite": np.stack([click_input_viz[...,i] for i in range(3)]+[empty_channel], axis=-1),
     }
 
-    mask_img = 255 * (mask_to_viz[..., None].repeat(3, axis=-1) > 0.5) if binary_checkbox and mask_to_viz is not None else \
-               (mask_to_viz[..., None].repeat(3, axis=-1) if mask_to_viz is not None else None)
+    mask_img = 255*(mask_to_viz[...,None].repeat(axis=2, repeats=3)>0.5) if binary_checkbox else mask_to_viz[...,None].repeat(axis=2, repeats=3)
+
 
     out_viz = [
         viz_pred_mask(input_img, mask_to_viz, None, None, None, None, binary_checkbox),
@@ -225,9 +218,6 @@ def refresh_predictions(predictor, input_img, output_img, click_coords, click_la
     
     return click_input_viz, scribble_input_viz, out_viz, best_mask, low_res_mask, img_features, seperate_scribble_masks, last_scribble_mask
 
-# =============================================================================
-# 点击/框操作相关函数（基本保持原逻辑）
-# =============================================================================
 def get_select_coords(predictor, input_img, brush_label, bbox_label, best_mask, low_res_mask, 
                       click_coords, click_labels, bbox_coords,
                       seperate_scribble_masks, last_scribble_mask, scribble_img, img_features,
@@ -235,6 +225,7 @@ def get_select_coords(predictor, input_img, brush_label, bbox_label, best_mask, 
     """
     Record user click and update the prediction
     """
+    # Record click coordinates
     if bbox_label:
         bbox_coords.append(evt.index)
     elif brush_label in ['Positive (green)', 'Negative (red)']:
@@ -242,18 +233,27 @@ def get_select_coords(predictor, input_img, brush_label, bbox_label, best_mask, 
         click_labels.append(1 if brush_label == 'Positive (green)' else 0)
     else:
         raise TypeError("Invalid brush label: {brush_label}")
+    
+    # Only make new prediction if not waiting for additional bounding box click
     if (len(bbox_coords) % 2 == 0) and autopredict_checkbox:
+
         click_input_viz, scribble_input_viz, output_viz, best_mask, low_res_mask, img_features, seperate_scribble_masks, last_scribble_mask = refresh_predictions(
             predictor, input_img, output_img, click_coords, click_labels, bbox_coords, brush_label,
             scribble_img, seperate_scribble_masks, last_scribble_mask, 
             best_mask, low_res_mask, img_features, binary_checkbox, multimask_mode,
-            None, None  # 此处不涉及 3D/视频更新
+            None, None 
         )
         return click_input_viz, scribble_input_viz, output_viz, best_mask, low_res_mask, img_features, click_coords, click_labels, bbox_coords, seperate_scribble_masks, last_scribble_mask
+    
     else:
-        click_input_viz = viz_pred_mask(input_img, best_mask, click_coords, click_labels, bbox_coords, seperate_scribble_masks, binary_checkbox)
-        scribble_input_viz = viz_pred_mask(input_img, best_mask, click_coords, click_labels, bbox_coords, None, binary_checkbox)
-        return click_input_viz, scribble_input_viz, output_img, best_mask, low_res_mask, img_features, click_coords, click_labels, bbox_coords, seperate_scribble_masks, last_scribble_mask
+        click_input_viz = viz_pred_mask(
+            input_img, best_mask, click_coords, click_labels, bbox_coords, seperate_scribble_masks, binary_checkbox
+        ) 
+        scribble_input_viz = viz_pred_mask(
+            input_img, best_mask, click_coords, click_labels, bbox_coords, None, binary_checkbox
+        )  
+        # Don't update output image if waiting for additional bounding box click
+        return click_input_viz, scribble_input_viz, output_img, best_mask, low_res_mask, img_features, click_coords, click_labels, bbox_coords, seperate_scribble_masks, last_scribble_mask   
 
 def undo_click(predictor, input_img, brush_label, bbox_label, best_mask, low_res_mask, click_coords, click_labels, bbox_coords,
                seperate_scribble_masks, last_scribble_mask, scribble_img, img_features,
@@ -270,21 +270,29 @@ def undo_click(predictor, input_img, brush_label, bbox_label, best_mask, low_res
             click_labels.pop()
     else:
         raise TypeError("Invalid brush label: {brush_label}")
-    if (len(bbox_coords) == 0 or len(bbox_coords) == 2) and autopredict_checkbox:
+   # Only make new prediction if not waiting for additional bounding box click
+    if (len(bbox_coords)==0 or len(bbox_coords)==2) and autopredict_checkbox:
+
         click_input_viz, scribble_input_viz, output_viz, best_mask, low_res_mask, img_features, seperate_scribble_masks, last_scribble_mask = refresh_predictions(
             predictor, input_img, output_img, click_coords, click_labels, bbox_coords, brush_label,
-            scribble_img, seperate_scribble_masks, last_scribble_mask,
-            best_mask, low_res_mask, img_features, binary_checkbox, multimask_mode,
-            None, None
+            scribble_img, seperate_scribble_masks, last_scribble_mask, 
+            best_mask, low_res_mask, img_features, binary_checkbox, multimask_mode
         )
         return click_input_viz, scribble_input_viz, output_viz, best_mask, low_res_mask, img_features, click_coords, click_labels, bbox_coords, seperate_scribble_masks, last_scribble_mask
+    
     else:
-        click_input_viz = viz_pred_mask(input_img, best_mask, click_coords, click_labels, bbox_coords, seperate_scribble_masks, binary_checkbox)
-        scribble_input_viz = viz_pred_mask(input_img, best_mask, click_coords, click_labels, bbox_coords, None, binary_checkbox)
-        return click_input_viz, scribble_input_viz, output_img, best_mask, low_res_mask, img_features, click_coords, click_labels, bbox_coords, seperate_scribble_masks, last_scribble_mask
+        click_input_viz = viz_pred_mask(
+            input_img, best_mask, click_coords, click_labels, bbox_coords, seperate_scribble_masks, binary_checkbox
+        ) 
+        scribble_input_viz = viz_pred_mask(
+            input_img, best_mask, click_coords, click_labels, bbox_coords, None, binary_checkbox
+        )  
+
+        # Don't update output image if waiting for additional bounding box click
+        return click_input_viz, scribble_input_viz, output_img, best_mask, low_res_mask, img_features, click_coords, click_labels, bbox_coords, seperate_scribble_masks, last_scribble_mask 
 
 # =============================================================================
-# 以下部分为 3D 图像和视频的处理函数
+# 3D 图像和视频的处理函数
 # =============================================================================
 
 def load_volume_slice(file_path, slice_index):
@@ -385,22 +393,21 @@ def update_current_slice(volume_file, slider_value):
         return None
     return img
 
+# --------------------------------------------------
 
-# =============================================================================
-# Gradio 界面
-# =============================================================================
 with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as demo:
 
-    # State 变量
+    # State variables
     seperate_scribble_masks = gr.State(np.zeros((2, H, W), dtype=np.float32))
     last_scribble_mask = gr.State(np.zeros((H, W), dtype=np.float32))
+
     click_coords = gr.State([])
     click_labels = gr.State([])
     bbox_coords = gr.State([])
 
-    # 加载默认模型
+    # Load default model
     predictor = gr.State(load_model()[0])
-    img_features = gr.State(None)  # 用于 SAM 模型
+    img_features = gr.State(None)  # For SAM models
     best_mask = gr.State(None)
     low_res_mask = gr.State(None)
 
@@ -425,6 +432,8 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
             * The <b>'Clear All Inputs'</b> button will clear all inputs (including scribbles, clicks, bounding boxes, and the last prediction). 
         """
         )
+    
+    # Interface ------------------------------------
 
     with gr.Row():
         model_dropdown = gr.Dropdown(
@@ -439,16 +448,18 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     with gr.Row():
         with gr.Column(scale=1):
             brush_label = gr.Radio(["Positive (green)", "Negative (red)"], 
-                                     value="Positive (green)", label="Scribble/Click Label")
+                           value="Positive (green)", label="Scribble/Click Label")
             bbox_label = gr.Checkbox(value=False, label="Bounding Box (2 clicks)")
         with gr.Column(scale=1):
+            
             binary_checkbox = gr.Checkbox(value=True, label="Show binary masks", visible=False)
             autopredict_checkbox = gr.Checkbox(value=True, label="Auto-update prediction on clicks")
-            with gr.Accordion("Troubleshooting tips", open=False):
-                gr.Markdown("<span style='color:orange'>遇到错误时请点击 'Clear All Inputs' 重置输入。")
+            with gr.Accordion("Troubleshooting tips", open=False): 
+                gr.Markdown("<span style='color:orange'>If you encounter an <span style='color:orange'>error</span> try clicking 'Clear All Inputs'.")
             multimask_mode = gr.Checkbox(value=True, label="Multi-mask mode", visible=False)
 
     with gr.Row():
+
         green_brush = gr.Brush(colors=["#00FF00"], color_mode="fixed", default_size=3)
         red_brush = gr.Brush(colors=["#FF0000"], color_mode="fixed", default_size=3)
 
@@ -478,6 +489,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
                 with gr.Row():
                     undo_click_button = gr.Button("Undo Last Click")
                     clear_click_button = gr.Button("Clear Clicks/Boxes", variant="stop")
+
             with gr.Tab("Input Image"):
                 input_img = gr.Image(
                     label="Input",
@@ -488,6 +500,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
                     height=display_height
                 )
                 gr.Markdown("To upload your own image: click the `x` in the top right corner to clear the current image, then drag & drop")
+        
         with gr.Column(scale=1):
             with gr.Tab("Output"):
                 output_img = gr.Gallery(
@@ -499,6 +512,9 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
                     height=display_height + 60,
                     container=True
                 )
+    submit_button = gr.Button("Refresh Prediction", variant='primary')
+    clear_all_button = gr.ClearButton([scribble_img], value="Clear All Inputs", variant="stop") 
+    clear_mask_button = gr.Button("Clear Input Mask")            
 
     # ---------------------------
     # 3D/Video 输入部分
@@ -510,13 +526,10 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
         frame_slider = gr.Slider(1, 100, 1, step=1, label="Slice/Frame Number", interactive=True)
         current_slice = gr.Image(label="Current Slice/Frame", image_mode="L", height=display_height)
 
-    submit_button = gr.Button("Refresh Prediction", variant='primary')
-    clear_all_button = gr.ClearButton([scribble_img], value="Clear All Inputs", variant="stop")
-    clear_mask_button = gr.Button("Clear Input Mask")
 
-    # -------------------------------------------
-    # 加载模型、示例
-    # -------------------------------------------
+    # ----------------------------------------------
+    # Loading Examples
+    # ----------------------------------------------
     model_dropdown.change(fn=load_model, 
                           inputs=[model_dropdown], 
                           outputs=[predictor, img_features])
@@ -526,40 +539,53 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
                 examples_per_page=12,
                 label='Examples from datasets unseen during training')
 
-    # -------------------------------------------
-    # 点击“Clear Clicks/Boxes”按钮时清除点击记录
+    # When clear clicks button is clicked
     def clear_click_history(input_img):
         return input_img, input_img, [], [], [], None, None
-
+    
     clear_click_button.click(clear_click_history,
-                             inputs=[input_img],
+                             inputs=[input_img], 
                              outputs=[click_img, scribble_img, click_coords, click_labels, bbox_coords, best_mask, low_res_mask])
 
-    # -------------------------------------------
-    # 清除所有输入
+    # When clear all button is clicked
     def clear_all_history(input_img):
         if input_img is not None:
             input_shape = input_img.shape[:2]
         else:
             input_shape = (H, W)
-        return (input_img, input_img, [], [], [], [], 
-                np.zeros((2, ) + input_shape, dtype=np.float32), 
-                np.zeros(input_shape, dtype=np.float32), 
-                None, None, None)
+        return input_img, input_img, [], [], [], [], np.zeros((2,)+input_shape, dtype=np.float32), np.zeros(input_shape, dtype=np.float32), None, None, None
 
+    # def clear_history_and_pad_input(input_img):
+    #     if input_img is not None:
+    #         h,w = input_img.shape[:2]
+    #         if h != w:
+    #             # Pad to square
+    #             pad = abs(h-w)
+    #             if h > w:
+    #                 padding = [(0,0), (math.ceil(pad/2),math.floor(pad/2))]
+    #             else:
+    #                 padding = [(math.ceil(pad/2),math.floor(pad/2)), (0,0)]
+
+    #             input_img = np.pad(input_img, padding, mode='constant', constant_values=0)
+
+    #     return clear_all_history(input_img)
+
+    
     input_img.change(clear_all_history,
-                     inputs=[input_img],
-                     outputs=[click_img, scribble_img, 
-                              output_img, click_coords, click_labels, bbox_coords, 
-                              seperate_scribble_masks, last_scribble_mask, 
-                              best_mask, low_res_mask, img_features])
+                    inputs=[input_img], 
+                    outputs=[click_img, scribble_img, 
+                            output_img, click_coords, click_labels, bbox_coords, 
+                            seperate_scribble_masks, last_scribble_mask, 
+                            best_mask, low_res_mask, img_features
+                    ])
     
     clear_all_button.click(clear_all_history,
-                           inputs=[input_img],
-                           outputs=[click_img, scribble_img, 
-                                    output_img, click_coords, click_labels, bbox_coords, 
-                                    seperate_scribble_masks, last_scribble_mask, 
-                                    best_mask, low_res_mask, img_features])
+                    inputs=[input_img], 
+                    outputs=[click_img, scribble_img, 
+                            output_img, click_coords, click_labels, bbox_coords, 
+                            seperate_scribble_masks, last_scribble_mask, 
+                            best_mask, low_res_mask, img_features
+                    ])
     
     # -------------------------------------------
     # 清除当前预测 mask
@@ -582,8 +608,9 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
         outputs=current_slice
     )
 
-    # -------------------------------------------
-    # 点击/框操作（点击图像时记录位置并更新预测）
+    # ----------------------------------------------
+    # Clicks
+    # ----------------------------------------------
     click_img.select(get_select_coords,
                      inputs=[
                         predictor,
@@ -596,7 +623,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
                      api_name="get_select_coords"
                     )
 
-    # 修改“Refresh Prediction”按钮的回调，额外传入 volume_input 与 current_slice
+    # 修改Refresh Prediction按钮的回调，额外传入 volume_input 与 current_slice
     submit_button.click(
         fn=refresh_predictions,
         inputs=[
@@ -640,6 +667,10 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
         outputs=[click_img, seperate_scribble_masks, last_scribble_mask],
         api_name="update_click_img"
     )
+
+    # ----------------------------------------------
+    # Scribbles
+    # ----------------------------------------------
 
     def change_brush_color(seperate_scribble_masks, last_scribble_mask, scribble_img, label):
         if label == "Negative (red)":
