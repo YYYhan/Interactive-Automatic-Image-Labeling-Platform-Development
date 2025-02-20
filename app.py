@@ -369,7 +369,6 @@ def update_current_slice(volume_file, slider_value):
     file_ext = os.path.splitext(file_path)[1].lower()
     idx = int(slider_value) - 1
 
-    # 新增对 .npy 的支持
     if file_ext in ['.nii', '.nii.gz']:
         try:
             img = load_volume_slice(file_path, idx)
@@ -520,10 +519,10 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     # 3D/Video 输入部分
     # ---------------------------
     with gr.Tab("3D/Video Input"):
-        # 这里增加 .npy 文件
+        
         volume_input = gr.File(label="Upload 3D Volume/Video", 
                                file_types=[".nii", ".nii.gz", ".dcm", ".mp4", ".avi", ".npy"])
-        frame_slider = gr.Slider(1, 100, 1, step=1, label="Slice/Frame Number", interactive=True)
+        frame_slider = gr.Slider(1, 800, 1, step=1, label="Slice/Frame Number", interactive=True)
         current_slice = gr.Image(label="Current Slice/Frame", image_mode="L", height=display_height)
 
 
