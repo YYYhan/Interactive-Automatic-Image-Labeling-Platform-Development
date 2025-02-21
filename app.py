@@ -297,7 +297,7 @@ def undo_click(predictor, input_img, brush_label, bbox_label, best_mask, low_res
 
 def load_volume_slice(file_path, slice_index):
     """
-    加载 3D 图像（如 NIfTI 格式），返回指定切片（假设切片在第三个维度）
+    加载 3D 图像（如 NIfTI 格式），返回指定切片
     """
     volume = nib.load(file_path).get_fdata()  # 得到 numpy 数组
     num_slices = volume.shape[2]
@@ -499,6 +499,12 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
                     height=display_height
                 )
                 gr.Markdown("To upload your own image: click the `x` in the top right corner to clear the current image, then drag & drop")
+                    # 3D/Video Input Tab (新增的部分)
+            with gr.Tab("3D/Video Input"):
+                volume_input = gr.File(label="Upload 3D Volume/Video", 
+                               file_types=[".nii", ".nii.gz", ".dcm", ".mp4", ".avi", ".npy"])
+                frame_slider = gr.Slider(1, 110, 1, step=1, label="Slice/Frame Number", interactive=True)
+                current_slice = gr.Image(label="Current Slice/Frame", image_mode="L", height=display_height)
         
         with gr.Column(scale=1):
             with gr.Tab("Output"):
@@ -522,7 +528,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
         
         volume_input = gr.File(label="Upload 3D Volume/Video", 
                                file_types=[".nii", ".nii.gz", ".dcm", ".mp4", ".avi", ".npy"])
-        frame_slider = gr.Slider(1, 800, 1, step=1, label="Slice/Frame Number", interactive=True)
+        frame_slider = gr.Slider(1,110, 1, step=1, label="Slice/Frame Number", interactive=True)
         current_slice = gr.Image(label="Current Slice/Frame", image_mode="L", height=display_height)
 
 
