@@ -505,7 +505,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
                                file_types=[".nii", ".nii.gz", ".dcm", ".mp4", ".avi", ".npy"])
                 frame_slider = gr.Slider(1, 110, 1, step=1, label="Slice/Frame Number", interactive=True)
                 current_slice = gr.Image(label="Current Slice/Frame", image_mode="L", height=display_height)
-        
+       
         with gr.Column(scale=1):
             with gr.Tab("Output"):
                 output_img = gr.Gallery(
@@ -524,12 +524,12 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     # ---------------------------
     # 3D/Video 输入部分
     # ---------------------------
-    with gr.Tab("3D/Video Input"):
+    #with gr.Tab("3D/Video Input"):
         
-        volume_input = gr.File(label="Upload 3D Volume/Video", 
-                               file_types=[".nii", ".nii.gz", ".dcm", ".mp4", ".avi", ".npy"])
-        frame_slider = gr.Slider(1,110, 1, step=1, label="Slice/Frame Number", interactive=True)
-        current_slice = gr.Image(label="Current Slice/Frame", image_mode="L", height=display_height)
+    #    volume_input = gr.File(label="Upload 3D Volume/Video", 
+    #                           file_types=[".nii", ".nii.gz", ".dcm", ".mp4", ".avi", ".npy"])
+    #    frame_slider = gr.Slider(1,110, 1, step=1, label="Slice/Frame Number", interactive=True)
+    #    current_slice = gr.Image(label="Current Slice/Frame", image_mode="L", height=display_height)
 
 
     # ----------------------------------------------
