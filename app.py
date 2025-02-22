@@ -172,10 +172,11 @@ def refresh_predictions(predictor, input_img, output_img, click_coords, click_la
                         best_mask, low_res_mask, img_features, binary_checkbox, multimask_mode,
                         volume_file, current_slice):
     
-    # 如果用户上传了 volume（3D/视频）且 current_slice 有值，则将其作为预测输入图像
     if volume_file is not None and current_slice is not None:
         input_img = current_slice
-
+        print(f"[DEBUG] 3D输入原始尺寸: {current_slice.shape}")  # 新增打印
+    # 输入图像处理完成后打印
+    print(f"[DEBUG] 输入图像最终尺寸: {input_img.shape}")  # 新增打印
     # Record any new scribbles
     seperate_scribble_masks, last_scribble_mask = get_scribbles(
         seperate_scribble_masks, last_scribble_mask, scribble_img
@@ -193,9 +194,10 @@ def refresh_predictions(predictor, input_img, output_img, click_coords, click_la
     gray_mask = (255 * mask_to_viz).astype(np.uint8) 
 
     bg = viz_pred_mask(input_img, mask_to_viz, click_coords, click_labels, bbox_coords, None, binary_checkbox)
-    
     old_scribbles = scribble_img.get('layers')[0] 
+
     scribble_mask = 255*(old_scribbles > 0).any(-1)
+
     scribble_input_viz = {
         "background": np.stack([bg[...,i] for i in range(3)]+[full_channel], axis=-1),
         ["layers"][0]: [np.stack([
@@ -295,7 +297,7 @@ def undo_click(predictor, input_img, brush_label, bbox_label, best_mask, low_res
 # 3D 图像和视频的处理函数
 # =============================================================================
 
-def load_volume_slice(file_path, slice_index):
+def load_volume_slice(file_path, slice_index,target_size=(1000, 1000)):
     """
     加载 3D 图像（如 NIfTI 格式），返回指定切片
     """
@@ -307,7 +309,9 @@ def load_volume_slice(file_path, slice_index):
     # 归一化到 0-255
     slice_img = (slice_img - slice_img.min()) / (slice_img.max() - slice_img.min() + 1e-8) * 255
     slice_img = slice_img.astype(np.uint8)
-    return slice_img
+    # 调整尺寸到 target_size
+    slice_img_resized = cv2.resize(slice_img, target_size)
+    return slice_img_resized
 
 def load_npy_slice(file_path, slice_index):
     """
@@ -371,7 +375,7 @@ def update_current_slice(volume_file, slider_value):
 
     if file_ext in ['.nii', '.nii.gz']:
         try:
-            img = load_volume_slice(file_path, idx)
+            img = load_volume_slice(file_path, idx,target_size=(1000, 1000))
         except Exception as e:
             print("加载 3D 图像时出错：", e)
             return None
@@ -390,7 +394,10 @@ def update_current_slice(volume_file, slider_value):
     else:
         print("不支持的文件格式: ", file_ext)
         return None
-    return img
+    
+    ##img = cv2.resize(img, (256, 256))
+    print(f"[DEBUG] 加载后的切片尺寸: {img.shape}")  # 新增打印
+    return img.astype(np.uint8)
 
 # --------------------------------------------------
 
@@ -447,7 +454,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     with gr.Row():
         with gr.Column(scale=1):
             brush_label = gr.Radio(["Positive (green)", "Negative (red)"], 
-                           value="Positive (green)", label="Scribble/Click Label")
+                           value="Positive (green)", label="Scribble/Click Label") 
             bbox_label = gr.Checkbox(value=False, label="Bounding Box (2 clicks)")
         with gr.Column(scale=1):
             
@@ -499,7 +506,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
                     height=display_height
                 )
                 gr.Markdown("To upload your own image: click the `x` in the top right corner to clear the current image, then drag & drop")
-                    # 3D/Video Input Tab (新增的部分)
+                    
             with gr.Tab("3D/Video Input"):
                 volume_input = gr.File(label="Upload 3D Volume/Video", 
                                file_types=[".nii", ".nii.gz", ".dcm", ".mp4", ".avi", ".npy"])
@@ -556,6 +563,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     def clear_all_history(input_img):
         if input_img is not None:
             input_shape = input_img.shape[:2]
+            print(f"[DEBUG] 2D输入原始尺寸: {input_img.shape}")  # 新增打印
         else:
             input_shape = (H, W)
         return input_img, input_img, [], [], [], [], np.zeros((2,)+input_shape, dtype=np.float32), np.zeros(input_shape, dtype=np.float32), None, None, None
@@ -600,10 +608,11 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
         return None, None, click_input_viz, scribble_input_viz
 
     clear_mask_button.click(
-        clear_best_mask,
-        inputs=[input_img, click_coords, click_labels, bbox_coords, seperate_scribble_masks],
-        outputs=[best_mask, low_res_mask, click_img, scribble_img]
-    )
+    clear_best_mask,
+    inputs=[input_img, click_coords, click_labels, bbox_coords, seperate_scribble_masks],
+    outputs=[best_mask, low_res_mask, click_img, scribble_img]
+)
+
 
     # -------------------------------------------
     # slider 变化时更新当前切片/帧显示
