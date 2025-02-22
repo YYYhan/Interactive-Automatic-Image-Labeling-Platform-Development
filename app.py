@@ -69,14 +69,24 @@ def _get_overlay(img, lay, const_color="l_blue"):
         img[x, y, i] = const_color[i]
     return img
 
-def image_overlay(img, mask=None, scribbles=None, contour=False, alpha=0.5):
+def image_overlay(img, mask=None, scribbles=None, contour=False, alpha=0.5,target_size=(1000, 1000)):
     """
     Overlay the ground truth mask and scribbles on the image if provided
     """
     assert img.ndim == 2, "Image must be 2D, got shape: " + str(img.shape)
-    output = np.repeat(img[..., None], 3, axis=-1)
+    # Resize image and mask to target size
+    img_resized = cv2.resize(img, target_size)
+    
     if mask is not None:
         assert mask.ndim == 2, "Mask must be 2D, got shape: " + str(mask.shape)
+        mask_resized = cv2.resize(mask, target_size)  # Ensure mask is the same size as the image
+    else:
+        mask_resized = None
+
+    output = np.repeat(img_resized[..., None], 3, axis=-1)
+
+    if mask is not None:
+        
         if contour:
             contours = cv2.findContours((mask[..., None] > 0.5).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
             cv2.drawContours(output, contours[0], -1, (0, 255, 0), 2)
@@ -345,7 +355,7 @@ def get_temp_file(file_obj):
     else:
         raise ValueError("无法解析上传的文件")
 
-def load_video_frame(file_path, frame_index):
+def load_video_frame(file_path, frame_index,target_size=(1000, 1000)):
     cap = cv2.VideoCapture(file_path)
     if not cap.isOpened():
         print(f"无法打开视频文件: {file_path}")
@@ -360,7 +370,8 @@ def load_video_frame(file_path, frame_index):
     if not ret:
         raise IOError(f"无法读取第 {frame_index} 帧")
     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    return frame_gray
+    frame_resized = cv2.resize(frame_gray, target_size)
+    return frame_resized
 
 def update_current_slice(volume_file, slider_value):
     if volume_file is None:
