@@ -141,7 +141,9 @@ def get_scribbles(seperate_scribble_masks, last_scribble_mask, scribble_img):
     """
     Record scribbles
     """
-    assert isinstance(seperate_scribble_masks, np.ndarray), "seperate_scribble_masks must be numpy array, got type: " + str(type(seperate_scribble_masks))
+    if seperate_scribble_masks is None:  # 如果为 None，初始化为全零数组
+        seperate_scribble_masks = np.zeros((2, H, W), dtype=np.float32)
+    # assert isinstance(seperate_scribble_masks, np.ndarray), "seperate_scribble_masks must be numpy array, got type: " + str(type(seperate_scribble_masks))
     if scribble_img is not None:
        
         # Only use first layer
@@ -182,19 +184,31 @@ def refresh_predictions(predictor, input_img, output_img, click_coords, click_la
                         best_mask, low_res_mask, img_features, binary_checkbox, multimask_mode,
                         volume_file, current_slice):
     
+    # Ensure bbox_coords is initialized (if it's None, initialize it as an empty list)
+    if bbox_coords is None:
+        bbox_coords = []
+
+    # Check if volume_file and current_slice are valid
     if volume_file is not None and current_slice is not None:
         input_img = current_slice
         print(f"[DEBUG] 3D输入原始尺寸: {current_slice.shape}")  # 新增打印
-    # 输入图像处理完成后打印
+    # Input image processing after loading
     print(f"[DEBUG] 输入图像最终尺寸: {input_img.shape}")  # 新增打印
+    
+    # Ensure separate_scribble_masks is initialized and not None
+    if seperate_scribble_masks is None:
+        seperate_scribble_masks = np.zeros((2, input_img.shape[0], input_img.shape[1]), dtype=np.float32)
+    
     # Record any new scribbles
     seperate_scribble_masks, last_scribble_mask = get_scribbles(
         seperate_scribble_masks, last_scribble_mask, scribble_img
     )
+    
     # Make prediction
     best_mask, img_features, low_res_mask = get_predictions(
         predictor, input_img, click_coords, click_labels, bbox_coords, seperate_scribble_masks, low_res_mask, img_features, multimask_mode
     )
+    
     # Update input visualizations
     mask_to_viz = best_mask.numpy()
     click_input_viz = viz_pred_mask(input_img, mask_to_viz, click_coords, click_labels, bbox_coords, seperate_scribble_masks, binary_checkbox)
@@ -204,23 +218,28 @@ def refresh_predictions(predictor, input_img, output_img, click_coords, click_la
     gray_mask = (255 * mask_to_viz).astype(np.uint8) 
 
     bg = viz_pred_mask(input_img, mask_to_viz, click_coords, click_labels, bbox_coords, None, binary_checkbox)
-    old_scribbles = scribble_img.get('layers')[0] 
+    
+    # Ensure scribble_img exists and is not None
+    if scribble_img is not None:
+        old_scribbles = scribble_img.get('layers')[0] 
+    else:
+        old_scribbles = np.zeros(input_img.shape)  # Empty scribbles if none exist
 
-    scribble_mask = 255*(old_scribbles > 0).any(-1)
+    scribble_mask = 255 * (old_scribbles > 0).any(-1)
 
     scribble_input_viz = {
-        "background": np.stack([bg[...,i] for i in range(3)]+[full_channel], axis=-1),
-        ["layers"][0]: [np.stack([
-            (255*seperate_scribble_masks[1]).astype(np.uint8), 
-            (255*seperate_scribble_masks[0]).astype(np.uint8), 
+        "background": np.stack([bg[..., i] for i in range(3)] + [full_channel], axis=-1),
+        "layers": [np.stack([
+            (255 * seperate_scribble_masks[1]).astype(np.uint8), 
+            (255 * seperate_scribble_masks[0]).astype(np.uint8), 
             empty_channel, 
             scribble_mask
         ], axis=-1)],
-        "composite": np.stack([click_input_viz[...,i] for i in range(3)]+[empty_channel], axis=-1),
+        "composite": np.stack([click_input_viz[..., i] for i in range(3)] + [empty_channel], axis=-1),
     }
 
-    mask_img = 255*(mask_to_viz[...,None].repeat(axis=2, repeats=3)>0.5) if binary_checkbox else mask_to_viz[...,None].repeat(axis=2, repeats=3)
-
+    # For binary checkbox
+    mask_img = 255 * (mask_to_viz[..., None].repeat(axis=2, repeats=3) > 0.5) if binary_checkbox else mask_to_viz[..., None].repeat(axis=2, repeats=3)
 
     out_viz = [
         viz_pred_mask(input_img, mask_to_viz, None, None, None, None, binary_checkbox),
@@ -229,6 +248,9 @@ def refresh_predictions(predictor, input_img, output_img, click_coords, click_la
     ]
     
     return click_input_viz, scribble_input_viz, out_viz, best_mask, low_res_mask, img_features, seperate_scribble_masks, last_scribble_mask
+
+
+
 
 def get_select_coords(predictor, input_img, brush_label, bbox_label, best_mask, low_res_mask, 
                       click_coords, click_labels, bbox_coords,
@@ -572,12 +594,50 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
 
     # When clear all button is clicked
     def clear_all_history(input_img):
-        if input_img is not None:
-            input_shape = input_img.shape[:2]
-            print(f"[DEBUG] 2D输入原始尺寸: {input_img.shape}")  # 新增打印
-        else:
-            input_shape = (H, W)
-        return input_img, input_img, [], [], [], [], np.zeros((2,)+input_shape, dtype=np.float32), np.zeros(input_shape, dtype=np.float32), None, None, None
+        # 不清除 input_img，确保上传的图像不会被清除
+        input_shape = input_img.shape[:2] if input_img is not None else (H, W)
+        
+        # 清除与用户交互相关的状态
+        click_coords = []  # 清空点击坐标
+        click_labels = []  # 清空点击标签
+        bbox_coords = []  # 清空框的坐标
+        seperate_scribble_masks = np.zeros((2, H, W), dtype=np.float32)  # 清空scribbles
+        last_scribble_mask = np.zeros((H, W), dtype=np.float32)  # 清空scribbles
+
+        # 清除与3D图像相关的状态
+        current_slice = None  # 清空当前切片
+        volume_file = None    # 清空3D图像文件
+
+        # 清除相关模型预测结果
+        best_mask = None
+        low_res_mask = None
+        img_features = None
+
+        # 返回图像本身，并重置交互状态
+        return input_img, input_img, [], [], [], None, None, seperate_scribble_masks, last_scribble_mask, best_mask, low_res_mask, img_features, current_slice, volume_file
+
+    def upload_new_image(input_img, volume_file):
+        # 每次上传新图像时，重置模型的预测结果
+        best_mask = None
+        low_res_mask = None
+        img_features = None
+
+      
+        predictor = load_model()[0]  # 加载模型
+        mask, img_features, low_res_mask = predictor.predict(input_img)
+
+        return mask, img_features, low_res_mask
+
+
+    def update_input_image(input_img, volume_file):
+        # 每次上传新图像时，清空之前的预测结果
+        best_mask, low_res_mask, img_features = upload_new_image(input_img, volume_file)
+
+        # 更新 UI 显示新的预测结果
+        return best_mask, low_res_mask, img_features
+
+
+
 
     # def clear_history_and_pad_input(input_img):
     #     if input_img is not None:
@@ -595,21 +655,27 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     #     return clear_all_history(input_img)
 
     
-    input_img.change(clear_all_history,
-                    inputs=[input_img], 
-                    outputs=[click_img, scribble_img, 
-                            output_img, click_coords, click_labels, bbox_coords, 
-                            seperate_scribble_masks, last_scribble_mask, 
-                            best_mask, low_res_mask, img_features
-                    ])
+    input_img.change(
+        fn=clear_all_history,
+        inputs=[input_img], 
+        outputs=[click_img, scribble_img, 
+                output_img, click_coords, click_labels, bbox_coords, 
+                seperate_scribble_masks, last_scribble_mask, 
+                best_mask, low_res_mask, img_features,current_slice
+        ]
+    )
+
     
-    clear_all_button.click(clear_all_history,
-                    inputs=[input_img], 
-                    outputs=[click_img, scribble_img, 
-                            output_img, click_coords, click_labels, bbox_coords, 
-                            seperate_scribble_masks, last_scribble_mask, 
-                            best_mask, low_res_mask, img_features
-                    ])
+    clear_all_button.click(
+        fn=clear_all_history,
+        inputs=[input_img], 
+        outputs=[click_img, scribble_img, 
+                output_img, click_coords, click_labels, bbox_coords, 
+                seperate_scribble_masks, last_scribble_mask, 
+                best_mask, low_res_mask, img_features,current_slice
+        ]
+    )
+
     
     # -------------------------------------------
     # 清除当前预测 mask
@@ -622,7 +688,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     clear_best_mask,
     inputs=[input_img, click_coords, click_labels, bbox_coords, seperate_scribble_masks],
     outputs=[best_mask, low_res_mask, click_img, scribble_img]
-)
+    )
 
 
     # -------------------------------------------
