@@ -412,7 +412,7 @@ def update_current_slice(volume_file, slider_value):
         except Exception as e:
             print("加载 3D 图像时出错：", e)
             return None
-    elif file_ext in ['.mp4', '.avi']:
+    elif file_ext in ['.mp4', '.avi',".tif",".mov"]:
         try:
             img = load_video_frame(file_path, idx)
         except Exception as e:
@@ -542,7 +542,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
                     
             with gr.Tab("3D/Video Input"):
                 volume_input = gr.File(label="Upload 3D Volume/Video", 
-                               file_types=[".nii", ".nii.gz", ".dcm", ".mp4", ".avi", ".npy"])
+                               file_types=[".nii", ".nii.gz", ".dcm", ".mp4", ".avi", ".npy",".tif",".mov"])
                 frame_slider = gr.Slider(1, 110, 1, step=1, label="Slice/Frame Number", interactive=True)
                 current_slice = gr.Image(label="Current Slice/Frame", image_mode="L", height=display_height)
        
