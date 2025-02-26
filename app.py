@@ -9,6 +9,7 @@ import cv2
 import pathlib
 import math
 import nibabel as nib 
+import io
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -496,7 +497,32 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
             with gr.Accordion("Troubleshooting tips", open=False): 
                 gr.Markdown("<span style='color:orange'>If you encounter an <span style='color:orange'>error</span> try clicking 'Clear All Inputs'.")
             multimask_mode = gr.Checkbox(value=True, label="Multi-mask mode", visible=False)
+    import tempfile
 
+
+    def download_and_display_scribble(current_slice, image_list):
+        if current_slice is None:
+            return image_list, None
+        
+        # 将切片图像保存为 PNG 格式
+        _, img_encoded = cv2.imencode('.png', current_slice)
+        img_bytes = img_encoded.tobytes()
+        
+        # 使用 tempfile 创建一个临时文件并写入图像数据
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+            temp_file.write(img_bytes)
+            file_path = temp_file.name  # 获取文件路径
+        
+        # 将新下载的图像文件路径加入到图像列表中
+        image_list.append(file_path)
+        
+        # 返回更新后的图像列表以及当前切片
+        # 将图像转换为字典格式，以便传递给ImageEditor
+        return {"image": current_slice}, image_list
+
+    
+
+    
     with gr.Row():
 
         green_brush = gr.Brush(colors=["#00FF00"], color_mode="fixed", default_size=3)
@@ -545,7 +571,10 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
                                file_types=[".nii", ".nii.gz", ".dcm", ".mp4", ".avi", ".npy",".tif",".mov"])
                 frame_slider = gr.Slider(1, 110, 1, step=1, label="Slice/Frame Number", interactive=True)
                 current_slice = gr.Image(label="Current Slice/Frame", image_mode="L", height=display_height)
-       
+                
+
+            
+                    
         with gr.Column(scale=1):
             with gr.Tab("Output"):
                 output_img = gr.Gallery(
@@ -560,7 +589,8 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     submit_button = gr.Button("Refresh Prediction", variant='primary')
     clear_all_button = gr.ClearButton([scribble_img], value="Clear All Inputs", variant="stop") 
     clear_mask_button = gr.Button("Clear Input Mask")            
-
+    
+    
     # ---------------------------
     # 3D/Video 输入部分
     # ---------------------------
@@ -571,7 +601,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     #    frame_slider = gr.Slider(1,110, 1, step=1, label="Slice/Frame Number", interactive=True)
     #    current_slice = gr.Image(label="Current Slice/Frame", image_mode="L", height=display_height)
 
-
+    
     # ----------------------------------------------
     # Loading Examples
     # ----------------------------------------------
@@ -680,15 +710,30 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     # -------------------------------------------
     # 清除当前预测 mask
     def clear_best_mask(input_img, click_coords, click_labels, bbox_coords, seperate_scribble_masks):
+        """
+        仅清除当前切片的标记，保留原始图像不变
+        """
+        print(f"input_img: {type(input_img)}")
+        print(f"click_coords: {type(click_coords)}")
+        print(f"click_labels: {type(click_labels)}")
+        print(f"bbox_coords: {type(bbox_coords)}")
+        print(f"seperate_scribble_masks: {type(seperate_scribble_masks)}")
         click_input_viz = viz_pred_mask(input_img, None, click_coords, click_labels, bbox_coords, seperate_scribble_masks)
         scribble_input_viz = viz_pred_mask(input_img, None, click_coords, click_labels, bbox_coords, None)
-        return None, None, click_input_viz, scribble_input_viz
+    
+        # 清除当前切片的标记
+        best_mask = None
+        low_res_mask = None
+        
+        return best_mask, low_res_mask, click_input_viz, scribble_input_viz
+
 
     clear_mask_button.click(
-    clear_best_mask,
-    inputs=[input_img, click_coords, click_labels, bbox_coords, seperate_scribble_masks],
-    outputs=[best_mask, low_res_mask, click_img, scribble_img]
+        clear_best_mask,
+        inputs=[input_img, click_coords, click_labels, bbox_coords, seperate_scribble_masks],
+        outputs=[best_mask, low_res_mask, click_img, scribble_img]
     )
+
 
 
     # -------------------------------------------
