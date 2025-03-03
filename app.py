@@ -462,6 +462,18 @@ def update_current_slice(volume_file, slider_value):
     print(f"[DEBUG] 加载后的切片尺寸: {img.shape}")  # 新增打印
     return img.astype(np.uint8)
 
+def slider_update_and_show(volume_file, slider_value):
+    # 先把文件读到第 slider_value 帧（或第 slider_value-1 切片）
+    slice_img = update_current_slice(volume_file, slider_value)
+    
+    # 将 slice_img 显示到「Clicks/Boxes」画布之前，可以先调用 viz_pred_mask 做一下简单可视化
+    click_view = viz_pred_mask(slice_img, mask=None)  
+    
+    # 返回给前端，分别更新 gr.Image 组件：一个是专门显示当前帧 (current_slice)，一个是用来点击和画box的 (click_img)
+    return slice_img, click_view
+
+
+
 # --------------------------------------------------
 
 with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as demo:
@@ -656,24 +668,34 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
         # 不清除 input_img，确保上传的图像不会被清除
         input_shape = input_img.shape[:2] if input_img is not None else (H, W)
         
-        # 清除与用户交互相关的状态
-        click_coords = []  # 清空点击坐标
-        click_labels = []  # 清空点击标签
-        bbox_coords = []  # 清空框的坐标
-        seperate_scribble_masks = np.zeros((2, H, W), dtype=np.float32)  # 清空scribbles
-        last_scribble_mask = np.zeros((H, W), dtype=np.float32)  # 清空scribbles
-
-        # 清除与3D图像相关的状态
-        current_slice = None  # 清空当前切片
-        volume_file = None    # 清空3D图像文件
-
-        # 清除相关模型预测结果
+        # 这里根据你想要的逻辑来初始化
+        click_coords = []
+        click_labels = []
+        bbox_coords = []
+        seperate_scribble_masks = np.zeros((2, H, W), dtype=np.float32)
+        last_scribble_mask = np.zeros((H, W), dtype=np.float32)
         best_mask = None
         low_res_mask = None
         img_features = None
+        current_slice = None  # 如果不想返回，就不用放到return里
+        # volume_file = None   # 同上
 
-        # 返回图像本身，并重置交互状态
-        return input_img, input_img, [], [], [], None, None, seperate_scribble_masks, last_scribble_mask, best_mask, low_res_mask, img_features, current_slice, volume_file
+        # 按正确顺序，返回 12 个值
+        return (
+            input_img,        # 1
+            input_img,        # 2
+            [],               # 3
+            [],               # 4
+            [],               # 5
+            bbox_coords,      # 6
+            seperate_scribble_masks,  # 7
+            last_scribble_mask,       # 8
+            best_mask,                # 9
+            low_res_mask,             # 10
+            img_features,             # 11
+            current_slice             # 12
+        )
+
 
     def upload_new_image(input_img, volume_file):
         # 每次上传新图像时，重置模型的预测结果
@@ -727,13 +749,23 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     
     clear_all_button.click(
         fn=clear_all_history,
-        inputs=[input_img], 
-        outputs=[click_img, scribble_img, 
-                output_img, click_coords, click_labels, bbox_coords, 
-                seperate_scribble_masks, last_scribble_mask, 
-                best_mask, low_res_mask, img_features,current_slice
+        inputs=[input_img],
+        outputs=[
+            click_img,           # 1
+            scribble_img,        # 2
+            output_img,          # 3
+            click_coords,        # 4
+            click_labels,        # 5
+            bbox_coords,         # 6
+            seperate_scribble_masks,  # 7
+            last_scribble_mask,       # 8
+            best_mask,                # 9
+            low_res_mask,             # 10
+            img_features,             # 11
+            current_slice             # 12
         ]
     )
+
 
     
     # -------------------------------------------
@@ -768,10 +800,11 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
     # -------------------------------------------
     # slider 变化时更新当前切片/帧显示
     frame_slider.change(
-        fn=update_current_slice,
+        fn=slider_update_and_show,
         inputs=[volume_input, frame_slider],
-        outputs=current_slice
+        outputs=[current_slice, click_img]  
     )
+
 
     # ----------------------------------------------
     # Clicks
