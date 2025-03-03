@@ -10,6 +10,7 @@ import pathlib
 import math
 import nibabel as nib 
 import io
+import tifffile
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -363,6 +364,28 @@ def load_npy_slice(file_path, slice_index):
     slice_img = slice_img.astype(np.uint8)
     return slice_img
 
+def load_tif_slice(file_path, slice_index, target_size=(1000, 1000)):
+    volume = tifffile.imread(file_path)
+    if volume.ndim == 3:
+        # 假设堆栈沿第一维：shape = (num_slices, H, W)
+        num_slices = volume.shape[0]
+        if slice_index < 0 or slice_index >= num_slices:
+            raise ValueError(f"切片索引 {slice_index} 超出范围 0 - {num_slices - 1}")
+        slice_img = volume[slice_index, :, :]
+    elif volume.ndim == 2:
+        # 单页 TIFF 文件，不管 slice_index是多少，直接返回
+        slice_img = volume
+    else:
+        raise ValueError("不支持的tif文件维度")
+    
+    # 归一化到0-255
+    slice_img = (slice_img - slice_img.min()) / (slice_img.max() - slice_img.min() + 1e-8) * 255
+    slice_img = slice_img.astype(np.uint8)
+    # 调整尺寸到 target_size
+    slice_img_resized = cv2.resize(slice_img, target_size)
+    return slice_img_resized
+
+
 import tempfile
 
 def get_temp_file(file_obj):
@@ -413,11 +436,17 @@ def update_current_slice(volume_file, slider_value):
         except Exception as e:
             print("加载 3D 图像时出错：", e)
             return None
-    elif file_ext in ['.mp4', '.avi',".tif",".mov"]:
+    elif file_ext in ['.mp4', '.avi',".mov"]:
         try:
             img = load_video_frame(file_path, idx)
         except Exception as e:
             print("加载视频时出错：", e)
+            return None
+    elif file_ext == '.tif':
+        try:
+            img = load_tif_slice(file_path, idx, target_size=(1000, 1000))
+        except Exception as e:
+            print("加载tif时出错：", e)
             return None
     elif file_ext == '.npy':  # <-- 处理 .npy
         try:
