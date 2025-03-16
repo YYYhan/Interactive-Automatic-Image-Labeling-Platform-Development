@@ -1,6 +1,8 @@
 from typing import Optional, Dict, Any, List
 import torch
 import torch.nn as nn
+import sys
+
 
 # -----------------------------------------------------------------------------
 # Blocks
@@ -9,18 +11,19 @@ import torch.nn as nn
 class Conv2d(nn.Module):
     """ Perform a 2D convolution
 
-    inputs are [b, c, h, w] where 
+    inputs are [b, c, h, w] where
         b is the batch size
-        c is the number of channels 
+        c is the number of channels
         h is the height
         w is the width
     """
-    def __init__(self, 
-                 in_channels: int, 
-                 out_channels: int, 
-                 kernel_size: int, 
+
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int,
+                 kernel_size: int,
                  padding: int,
-                 do_activation: bool = True, 
+                 do_activation: bool = True,
                  ):
         super(Conv2d, self).__init__()
 
@@ -35,7 +38,8 @@ class Conv2d(nn.Module):
     def forward(self, x):
         # x is [B, C, H, W]
         return self.conv(x)
-    
+
+
 # -----------------------------------------------------------------------------
 # Network
 # -----------------------------------------------------------------------------
@@ -47,7 +51,7 @@ class _UNet(nn.Module):
                  features: List[int] = [64, 64, 64, 64, 64],
                  conv_kernel_size: int = 3,
                  conv: Optional[nn.Module] = None,
-                 conv_kwargs: Dict[str,Any] = {}
+                 conv_kwargs: Dict[str, Any] = {}
                  ):
         """
         UNet (but can switch out the Conv)
@@ -83,10 +87,10 @@ class _UNet(nn.Module):
 
         self.bottleneck = conv(
             features[-1], features[-1], kernel_size=conv_kernel_size, padding=padding, **conv_kwargs
-            )
+        )
         self.final_conv = conv(
             features[0], out_channels, kernel_size=1, padding=0, do_activation=False, **conv_kwargs
-            )
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         skip_connections = []
@@ -106,18 +110,18 @@ class _UNet(nn.Module):
             x = self.ups[idx + 1](concat_skip)
 
         return self.final_conv(x)
-    
+
 
 class UNet(_UNet):
     """
     Unet with normal conv blocks
 
     input shape: B x C x H x W
-    output shape: B x C x H x W 
+    output shape: B x C x H x W
     """
+
     def __init__(self, **kwargs) -> None:
         super().__init__(conv=Conv2d, **kwargs)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x)
-        
