@@ -39,9 +39,6 @@ The following tools were used for testing:
 
 ### Software Dependencies
 - Gradio 5.X
-- Java JDK 11
-- Node.js 14.x
-- MySQL 8.0
 
 ### Network Requirements
 - A stable internet connection with a minimum bandwidth of 10Mbps is required.
