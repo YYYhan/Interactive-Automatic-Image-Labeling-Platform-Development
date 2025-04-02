@@ -99,7 +99,7 @@ This repository is an extended version of [ScribblePrompt](https://huggingface.c
 
 #### Long-Term Improvements
 - Continue to train the large model to improve the accuracy of image labeling.
-- Conduct regular accessibility audits to ensure compliance with WCAG standards.
+- Debug the functionality in the Sam model.
 
 ---
 
@@ -112,7 +112,6 @@ The SBTM approach provides a structured yet flexible framework for testing autom
 
 ### Operating System
 - Windows 10 or later
-- macOS 10.15 or later
 - Linux (Ubuntu 20.04 or later)
 
 ### Hardware Requirements

@@ -23,20 +23,46 @@ This manual is intended for:
 - Model fine-tuning using custom training data.
 
 ### Screenshots
-![Initial Page](Initial.png)  
+
+![Initial Page](images/Initial.png)  
 - Initial page loaded by the user.
 
-![Waiting for update---](upload.png)  
+![Instructions](images/Instructions.png)  
+- Instructions of function.
+
+![ModelSelection](images/ModelSelection.png)  
+- ModelSelection.
+
+
+![Scribble&Click](images/Scribble&Click.png)  
+- Scribble&Click.
+
+![Prediction](images/Prediction.png)  
+- Prediction
+
+
+![ClicksMode](images/ClicksMode.png)  
+- ClicksMode.
+
+![BoundingBox](images/BoundingBox.png)  
+- BoundingBox.
+
+
+![MaskEditor](images/MaskEditor.png)  
+- MaskEditor.
+
+![Queue](images/Queue.png)  
+- Queue.
 
 ---
 
 ## 3. Getting Started
 
 ### System Requirements
-- **Operating System**: Windows 10, macOS 10.15, or Ubuntu 20.04.
+- **Operating System**: Windows 10 or Ubuntu 20.04.
 - **RAM**: 8GB.
 - **Disk Space**: 500MB of free space.
-- **Software Dependencies**: Java JDK 11, Node.js 14.x, MySQL 8.0.
+- **Software Dependencies**: Gradio 5.X .
 
 ### Installation Steps
 1. Download the project from the [github website](https://github.com/YYYhan/Interactive-Automatic-Image-Labeling-Platform-Development/tree/main).
@@ -50,18 +76,13 @@ This manual is intended for:
 
 ## 4. Step-by-Step Guide
 
-### Image Upload
-1. XXX
-2. XXX
-3. XXX
-
-### Box checking method change
-1. XXX
+### Image Upload 
+1. Click on the Image List box to select the images that need to be uploaded.
+2. Select the desired box selection mode.
+3. Interact with images through a mouse.(Detailed operation demonstration videos can be viewed)
+4. Click Apply Scribble.
 
 
-### Waiting for update
-
----
 
 ## 5. Troubleshooting
 
@@ -86,11 +107,13 @@ This manual is intended for:
 
 ### Q1: How do I reset the state of image?
 
+- Click on Clear All Input and re-enter the image.
 
 ### Q2: How do I achieve recognition of 3D video images?
 - The software supports CSV and Excel files (.csv, .xlsx).
 
 ### Q3: How do I contact support?
+
 - You can contact support via email at scyjz21@nottingham.edu.cn.
 
 ---
@@ -116,4 +139,4 @@ This manual is intended for:
 
 ### Additional Resources
 - [Official Documentation](./Documentation.md)
-- [Tutorial Videos]()
+- [Tutorial Videos](Video/Operation_Video.mp4)
