@@ -139,4 +139,4 @@ This manual is intended for:
 
 ### Additional Resources
 - [Official Documentation](./Documentation.md)
-- [Tutorial Videos](Video/Operation_Video.mp4)
+- [Tutorial Videos](Video/Recording_Software_Demonstration.mp4)
